@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,6 +25,17 @@
     .icon { margin-right: 10px; }
     .dropdown, .toggle-btn { margin-top: 10px; }
     .time-label { display: flex; align-items: center; }
+    .tab-container { display: flex; justify-content: center; margin-bottom: 15px; }
+    .tab { padding: 10px 20px; background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; border-radius: 8px 8px 0 0; }
+    .tab.active { background: rgba(255,255,255,0.4); }
+    .compass { width: 200px; height: 200px; margin: 20px auto; position: relative; }
+    .compass-arrow { position: absolute; top: 50%; left: 50%; transform-origin: left center; height: 2px; background: red; z-index: 2; }
+    .compass-circle { width: 100%; height: 100%; border-radius: 50%; border: 2px solid white; position: relative; }
+    .compass-direction { position: absolute; color: white; font-weight: bold; }
+    .hidden { display: none; }
+    .settings { text-align: left; margin-top: 15px; }
+    .settings label { display: block; margin: 10px 0; }
+    .next-prayer { font-weight: bold; margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.2); border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -34,24 +44,79 @@
     <div class="clock" id="clock">--:--:--</div>
     <div class="dates" id="dates">Loading dates...</div>
 
-    <div class="search-bar">
-      <input type="text" id="city" placeholder="City">
-      <input type="text" id="country" placeholder="Country">
-      <button onclick="searchLocation()">Search</button>
-      <button onclick="detectLocation()">📍 Detect</button>
+    <div class="tab-container">
+      <button class="tab active" onclick="showTab('prayer-times')">Prayer Times</button>
+      <button class="tab" onclick="showTab('qibla')">Qibla Direction</button>
+      <button class="tab" onclick="showTab('settings')">Settings</button>
     </div>
 
-    <select id="savedLocations" class="dropdown" onchange="loadSavedLocation(this.value)">
-      <option value="">Saved Locations</option>
-    </select>
+    <div id="prayer-times-tab">
+      <div class="search-bar">
+        <input type="text" id="city" placeholder="City">
+        <input type="text" id="country" placeholder="Country">
+        <button onclick="searchLocation()">Search</button>
+        <button onclick="detectLocation()">📍 Detect</button>
+      </div>
 
-    <div id="times" class="card">Enter a location or use detect</div>
+      <select id="savedLocations" class="dropdown" onchange="loadSavedLocation(this.value)">
+        <option value="">Saved Locations</option>
+      </select>
+
+      <div id="times" class="card">Enter a location or use detect</div>
+      <div id="next-prayer" class="next-prayer"></div>
+    </div>
+
+    <div id="qibla-tab" class="hidden">
+      <div class="compass">
+        <div class="compass-circle"></div>
+        <div class="compass-arrow" id="compass-arrow"></div>
+        <div class="compass-direction" style="top: 10px; left: 50%; transform: translateX(-50%);">N</div>
+        <div class="compass-direction" style="bottom: 10px; left: 50%; transform: translateX(-50%);">S</div>
+        <div class="compass-direction" style="top: 50%; left: 10px; transform: translateY(-50%);">W</div>
+        <div class="compass-direction" style="top: 50%; right: 10px; transform: translateY(-50%);">E</div>
+      </div>
+      <div id="qibla-info" class="card">Loading qibla direction...</div>
+    </div>
+
+    <div id="settings-tab" class="hidden">
+      <div class="card settings">
+        <h3>Calculation Settings</h3>
+        <label>
+          <input type="radio" name="asr-method" value="standard" checked> Standard Asr (Shafi/Maliki/Hanbali)
+        </label>
+        <label>
+          <input type="radio" name="asr-method" value="hanafi"> Hanafi Asr
+        </label>
+        <label>
+          <input type="checkbox" id="auto-timezone"> Auto-detect timezone
+        </label>
+        <label>
+          <input type="checkbox" id="dark-mode-toggle"> Dark mode
+        </label>
+      </div>
+    </div>
 
     <button class="toggle-btn" onclick="toggleDarkMode()">🌙 Toggle Dark Mode</button>
   </div>
 
   <script>
     const prayerIcons = { "Fajr": "🌄", "Sunrise": "🌅", "Dhuhr": "☀️", "Asr": "🌇", "Maghrib": "🌆", "Isha": "🌃" };
+    let currentLocation = {};
+    let currentQiblaDirection = 0;
+    
+    // Tab navigation
+    function showTab(tabName) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll(`[id$="-tab"]`).forEach(tab => tab.classList.add('hidden'));
+      
+      document.querySelector(`.tab[onclick="showTab('${tabName}')"]`).classList.add('active');
+      document.getElementById(`${tabName}-tab`).classList.remove('hidden');
+      
+      if (tabName === 'qibla' && currentLocation.latitude) {
+        updateCompass();
+      }
+    }
+
     function to12Hour(time24) {
       const [hourStr, minute] = time24.split(':');
       let hour = parseInt(hourStr);
@@ -59,11 +124,18 @@
       hour = hour % 12 || 12;
       return `${hour}:${minute} ${ampm}`;
     }
+
     function updateClock() {
       const now = new Date();
       const clock = document.getElementById('clock');
       clock.textContent = now.toLocaleTimeString();
+      
+      // Update next prayer if we have prayer times
+      if (currentLocation.timings) {
+        updateNextPrayer();
+      }
     }
+
     function updateSavedLocationsDropdown() {
       const dropdown = document.getElementById('savedLocations');
       dropdown.innerHTML = '<option value="">Saved Locations</option>';
@@ -75,26 +147,41 @@
         dropdown.appendChild(opt);
       });
     }
-    function saveLocation(city, country) {
+
+    function saveLocation(city, country, latitude, longitude) {
       let saved = JSON.parse(localStorage.getItem('savedLocations') || '[]');
       if (!saved.some(loc => loc.city === city && loc.country === country)) {
-        saved.push({ city, country });
+        saved.push({ city, country, latitude, longitude });
         localStorage.setItem('savedLocations', JSON.stringify(saved));
         updateSavedLocationsDropdown();
       }
     }
-    function fetchPrayerTimes(city, country) {
+
+    function fetchPrayerTimes(city, country, latitude, longitude) {
       const method = 2;
-      const url = `https://api.aladhan.com/v1/timingsByCity?city=${city}&country=${country}&method=${method}&school=1`;
+      const asrMethod = document.querySelector('input[name="asr-method"]:checked').value;
+      const school = asrMethod === 'hanafi' ? 1 : 0;
+      
+      let url;
+      if (latitude && longitude) {
+        url = `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=${method}&school=${school}`;
+      } else {
+        url = `https://api.aladhan.com/v1/timingsByCity?city=${city}&country=${country}&method=${method}&school=${school}`;
+      }
+      
       fetch(url)
         .then(res => res.json())
         .then(data => {
           const times = data.data.timings;
           const hijri = data.data.date.hijri;
           const gregorian = data.data.date.gregorian;
-          document.getElementById('dates').innerHTML = `${gregorian.date} | ${hijri.date} (${hijri.weekday.en})`;
+          const timezone = data.data.meta.timezone;
+          
+          document.getElementById('dates').innerHTML = `${gregorian.date} | ${hijri.date} (${hijri.weekday.en}) | ${timezone}`;
+          
           const timesDiv = document.getElementById('times');
           timesDiv.innerHTML = `<h2>${city}, ${country}</h2>`;
+          
           const keys = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
           keys.forEach(key => {
             const row = document.createElement('div');
@@ -102,17 +189,131 @@
             row.innerHTML = `<span class="time-label"><span class="icon">${prayerIcons[key]}</span>${key}</span><span>${to12Hour(times[key])}</span>`;
             timesDiv.appendChild(row);
           });
+          
+          // Store current location and timings
+          currentLocation = { city, country, latitude, longitude, timings: times };
           updateBackground(keys, times);
+          updateNextPrayer();
+          
+          // If we have coordinates, fetch qibla direction
+          if (latitude && longitude) {
+            fetchQiblaDirection(latitude, longitude);
+          }
         })
         .catch(err => {
           document.getElementById('times').innerHTML = 'Failed to fetch prayer times.';
           console.error(err);
         });
     }
+
+    function fetchQiblaDirection(latitude, longitude) {
+      // Qibla calculation formula
+      const phiK = 21.3891 * (Math.PI / 180); // Kaaba latitude in radians
+      const lambdaK = 39.8579 * (Math.PI / 180); // Kaaba longitude in radians
+      const phi = latitude * (Math.PI / 180);
+      const lambda = longitude * (Math.PI / 180);
+      
+      const psi = 180 / Math.PI * Math.atan2(
+        Math.sin(lambdaK - lambda),
+        Math.cos(phi) * Math.tan(phiK) - Math.sin(phi) * Math.cos(lambdaK - lambda)
+      );
+      
+      currentQiblaDirection = (psi + 360) % 360;
+      
+      document.getElementById('qibla-info').innerHTML = `
+        <h2>Qibla Direction</h2>
+        <p>Facing towards ${currentQiblaDirection.toFixed(1)}° from North</p>
+        <p>Location: ${currentLocation.city}, ${currentLocation.country}</p>
+      `;
+      
+      if (document.getElementById('qibla-tab').classList.contains('hidden')) {
+        updateCompass();
+      }
+    }
+
+    function updateCompass() {
+      if (!window.DeviceOrientationEvent) {
+        document.getElementById('qibla-info').innerHTML += '<p>Compass not supported on this device</p>';
+        return;
+      }
+      
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS 13+ requires permission
+        DeviceOrientationEvent.requestPermission()
+          .then(response => {
+            if (response === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation);
+            }
+          })
+          .catch(console.error);
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    }
+
+    function handleOrientation(event) {
+      const arrow = document.getElementById('compass-arrow');
+      if (event.absolute && event.webkitCompassHeading) {
+        // iOS
+        const heading = event.webkitCompassHeading;
+        const direction = (360 - heading + currentQiblaDirection) % 360;
+        arrow.style.transform = `translateX(-50%) rotate(${direction}deg)`;
+        arrow.style.width = '100px';
+      } else if (event.alpha !== null) {
+        // Android/other
+        const alpha = event.alpha; // compass direction
+        const beta = event.beta;  // front-to-back (tilt)
+        const gamma = event.gamma; // left-to-right (tilt)
+        
+        if (alpha !== null) {
+          const direction = (360 - alpha + currentQiblaDirection) % 360;
+          arrow.style.transform = `translateX(-50%) rotate(${direction}deg)`;
+          arrow.style.width = '100px';
+        }
+      }
+    }
+
+    function updateNextPrayer() {
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      const prayers = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
+      
+      let nextPrayer = null;
+      let nextPrayerTime = null;
+      let minDiff = Infinity;
+      
+      prayers.forEach(prayer => {
+        const [h, m] = currentLocation.timings[prayer].split(':').map(Number);
+        const prayerTime = h * 60 + m;
+        const diff = prayerTime - currentTime;
+        
+        if (diff > 0 && diff < minDiff) {
+          minDiff = diff;
+          nextPrayer = prayer;
+          nextPrayerTime = currentLocation.timings[prayer];
+        }
+      });
+      
+      // If no next prayer today, use Fajr tomorrow
+      if (!nextPrayer) {
+        nextPrayer = "Fajr";
+        nextPrayerTime = currentLocation.timings.Fajr;
+        minDiff = (24 * 60 - currentTime) + (parseInt(nextPrayerTime.split(':')[0]) * 60 + parseInt(nextPrayerTime.split(':')[1]));
+      }
+      
+      const hoursLeft = Math.floor(minDiff / 60);
+      const minutesLeft = minDiff % 60;
+      
+      document.getElementById('next-prayer').innerHTML = `
+        Next: ${nextPrayer} at ${to12Hour(nextPrayerTime)} (in ${hoursLeft > 0 ? hoursLeft + 'h ' : ''}${minutesLeft}m)
+      `;
+    }
+
     function updateBackground(prayers, times) {
       const now = new Date();
       const currentTime = now.getHours() * 60 + now.getMinutes();
       let activePrayer = prayers[0];
+      
       for (let i = 0; i < prayers.length; i++) {
         const [h, m] = times[prayers[i]].split(':').map(Number);
         const mins = h * 60 + m;
@@ -120,6 +321,7 @@
           activePrayer = prayers[i];
         }
       }
+      
       const gradients = {
         "Fajr": "#1e3c72, #2a5298",
         "Sunrise": "#f6d365, #fda085",
@@ -128,22 +330,47 @@
         "Maghrib": "#e96443, #904e95",
         "Isha": "#141e30, #243b55"
       };
+      
       document.body.style.background = `linear-gradient(to top, ${gradients[activePrayer]})`;
     }
+
     function searchLocation() {
       const city = document.getElementById('city').value.trim();
       const country = document.getElementById('country').value.trim();
       if (!city || !country) return alert('Enter both city and country');
-      saveLocation(city, country);
-      fetchPrayerTimes(city, country);
+      
+      // Try to get coordinates for better accuracy
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.results && data.results.length > 0) {
+            const { latitude, longitude } = data.results[0];
+            saveLocation(city, country, latitude, longitude);
+            fetchPrayerTimes(city, country, latitude, longitude);
+          } else {
+            saveLocation(city, country);
+            fetchPrayerTimes(city, country);
+          }
+        })
+        .catch(() => {
+          saveLocation(city, country);
+          fetchPrayerTimes(city, country);
+        });
     }
+
     function loadSavedLocation(val) {
       if (!val) return;
-      const { city, country } = JSON.parse(val);
-      fetchPrayerTimes(city, country);
+      const loc = JSON.parse(val);
+      if (loc.latitude && loc.longitude) {
+        fetchPrayerTimes(loc.city, loc.country, loc.latitude, loc.longitude);
+      } else {
+        fetchPrayerTimes(loc.city, loc.country);
+      }
     }
+
     function detectLocation() {
       if (!navigator.geolocation) return alert('Geolocation not supported');
+      
       navigator.geolocation.getCurrentPosition(pos => {
         const { latitude, longitude } = pos.coords;
         fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`)
@@ -153,18 +380,42 @@
             const country = data.countryCode || "US";
             document.getElementById('city').value = city;
             document.getElementById('country').value = country;
-            fetchPrayerTimes(city, country);
-            saveLocation(city, country);
+            saveLocation(city, country, latitude, longitude);
+            fetchPrayerTimes(city, country, latitude, longitude);
           })
-          .catch(err => console.error('Failed to detect location:', err));
+          .catch(err => {
+            console.error('Failed to detect location:', err);
+            alert('Failed to detect location. Please enter manually.');
+          });
+      }, err => {
+        console.error('Geolocation error:', err);
+        alert('Error getting location. Please enter manually.');
       });
     }
+
     function toggleDarkMode() {
       document.body.classList.toggle('dark-mode');
+      localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
     }
-    setInterval(updateClock, 1000);
-    updateClock();
-    updateSavedLocationsDropdown();
+
+    // Initialize
+    function init() {
+      // Load dark mode preference
+      if (localStorage.getItem('darkMode') === 'true') {
+        document.body.classList.add('dark-mode');
+      }
+      
+      // Set default location if none saved
+      if (!localStorage.getItem('savedLocations')) {
+        fetchPrayerTimes('Mecca', 'Saudi Arabia');
+      }
+      
+      setInterval(updateClock, 1000);
+      updateClock();
+      updateSavedLocationsDropdown();
+    }
+
+    init();
   </script>
 </body>
 </html>
