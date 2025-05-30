@@ -138,6 +138,7 @@
       border-radius: 8px; 
       cursor: pointer; 
       transition: transform 0.2s, opacity 0.2s;
+      font-size: 0.9rem;
     }
     
     button:hover { opacity: 0.9; transform: scale(1.02); }
@@ -195,13 +196,14 @@
     }
     
     .tab { 
-      padding: 10px 20px; 
+      padding: 10px 15px; 
       background: transparent; 
       border: none; 
       color: var(--text-color); 
       cursor: pointer; 
       border-radius: 5px;
       transition: all 0.3s;
+      font-size: 0.9rem;
     }
     
     .tab.active { 
@@ -240,9 +242,9 @@
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 80%;
+      width: 40%;
       height: 4px;
-      background: linear-gradient(to right, transparent, #ff3b30 50%, transparent);
+      background: linear-gradient(to right, transparent, var(--warning-color) 50%, transparent);
       transform-origin: left center;
       z-index: 2;
     }
@@ -253,7 +255,7 @@
       left: 50%;
       width: 12px;
       height: 12px;
-      background: #fff;
+      background: var(--warning-color);
       border-radius: 50%;
       transform: translate(-50%, -50%);
       z-index: 3;
@@ -263,7 +265,7 @@
       position: absolute;
       width: 30px;
       height: 30px;
-      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FF3B30"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5zm0 2.3L18.5 9l-6.5 3.7L5.5 9 12 4.3zm-7 5.3l6 3.4v6.6l-6-3.4V9.6zm14 0v6.6l-6 3.4v-6.6l6-3.4z"/></svg>');
+      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234a80f0"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5zm0 2.3L18.5 9l-6.5 3.7L5.5 9 12 4.3zm-7 5.3l6 3.4v6.6l-6-3.4V9.6zm14 0v6.6l-6 3.4v-6.6l6-3.4z"/></svg>');
       background-size: contain;
       transform: translate(-50%, -50%);
       z-index: 4;
@@ -297,7 +299,17 @@
     }
     
     .hidden { display: none; }
-    .settings { text-align: left; margin-top: 15px; }
+    
+    .settings { 
+      text-align: left; 
+      margin-top: 15px;
+      padding: 15px;
+    }
+    
+    .settings h3 {
+      margin-top: 0;
+      text-align: center;
+    }
     
     .next-prayer { 
       font-weight: bold; 
@@ -318,10 +330,24 @@
     .settings-option {
       display: flex;
       align-items: center;
-      padding: 8px 0;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
     }
     
-    .settings-option input { margin-right: 10px; }
+    .settings-option:last-child {
+      border-bottom: none;
+    }
+    
+    .settings-option input { 
+      margin-right: 12px;
+      width: 20px;
+      height: 20px;
+    }
+    
+    .settings-option label {
+      flex: 1;
+    }
+    
     .kaaba-label { color: var(--warning-color); font-weight: bold; }
     
     /* Swipe indicator */
@@ -345,9 +371,25 @@
       transform: scale(1.3);
     }
     
+    .compass-controls {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    
     @media (max-width: 400px) {
       .search-bar {
         flex-direction: column;
+      }
+      
+      .tab {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+      }
+      
+      .settings-option {
+        padding: 10px 0;
       }
     }
   </style>
@@ -387,7 +429,7 @@
       <div class="compass-container">
         <div class="compass" id="compass">
           <div class="compass-rose"></div>
-          <div class="compass-arrow"></div>
+          <div class="compass-arrow" id="compass-arrow"></div>
           <div class="compass-center"></div>
           <div class="kaaba-marker" id="kaaba-marker"></div>
           
@@ -401,6 +443,11 @@
         Rotate your device to find Qibla direction
       </div>
       <div id="distance-info" class="distance-info"></div>
+      
+      <div class="compass-controls">
+        <button onclick="resetCompass()">🔄 Reset Compass</button>
+        <button onclick="recalibrateCompass()">🎯 Recalibrate</button>
+      </div>
     </div>
 
     <div id="settings-tab" class="hidden">
@@ -408,11 +455,11 @@
         <h3>Settings</h3>
         <div class="settings-option">
           <input type="radio" id="standard-asr" name="asr-method" value="standard" checked>
-          <label for="standard-asr">Standard Asr</label>
+          <label for="standard-asr">Standard Asr Calculation</label>
         </div>
         <div class="settings-option">
           <input type="radio" id="hanafi-asr" name="asr-method" value="hanafi">
-          <label for="hanafi-asr">Hanafi Asr</label>
+          <label for="hanafi-asr">Hanafi Asr Calculation</label>
         </div>
         <div class="settings-option">
           <input type="checkbox" id="dark-mode-toggle">
@@ -450,6 +497,7 @@
     let touchStartX = 0;
     let currentDayIndex = 0;
     let prayerTimesForDays = [];
+    let compassActive = false;
 
     // DOM Elements
     const clockEl = document.getElementById('clock');
@@ -458,6 +506,7 @@
     const dayIndicatorEl = document.getElementById('day-indicator');
     const distanceInfoEl = document.getElementById('distance-info');
     const compassEl = document.getElementById('compass');
+    const compassArrowEl = document.getElementById('compass-arrow');
     const kaabaMarkerEl = document.getElementById('kaaba-marker');
     const qiblaIndicatorEl = document.getElementById('qibla-indicator');
     const nextPrayerEl = document.getElementById('next-prayer');
@@ -490,7 +539,8 @@
 
     // Clock
     function updateClock() {
-      clockEl.textContent = new Date().toLocaleTimeString();
+      const now = new Date();
+      clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       if (currentLocation.timings) {
         updateBackgroundBasedOnTime();
         updateNextPrayer();
@@ -514,19 +564,39 @@
       fetch(url)
         .then(res => res.json())
         .then(data => {
-          if (data.code === 200) {
-            prayerTimesForDays = data.data.slice(0, 5); // Get next 5 days
-            displayPrayerTimes();
-            saveLocation(city, country, latitude, longitude);
+          if (data.code === 200 && data.data) {
+            // Filter out invalid dates and get next 5 valid days
+            prayerTimesForDays = data.data.filter(day => {
+              try {
+                const dateStr = day.date.gregorian.date;
+                const parts = dateStr.split('-');
+                if (parts.length !== 3) return false;
+                
+                const testDate = new Date(parts[2], parts[1]-1, parts[0]);
+                return !isNaN(testDate.getTime());
+              } catch (e) {
+                return false;
+              }
+            }).slice(0, 5);
             
-            // Calculate Qibla direction if we have coordinates
-            if (latitude && longitude) {
-              calculateQiblaDirection(latitude, longitude);
+            if (prayerTimesForDays.length > 0) {
+              displayPrayerTimes();
+              saveLocation(city, country, latitude, longitude);
+              
+              // Calculate Qibla direction if we have coordinates
+              if (latitude && longitude) {
+                calculateQiblaDirection(latitude, longitude);
+              }
+            } else {
+              throw new Error('No valid prayer times data received');
             }
+          } else {
+            throw new Error('Invalid prayer times data received');
           }
         })
         .catch(err => {
           console.error('Failed to fetch prayer times:', err);
+          timeContainerEl.innerHTML = '<p>Error loading prayer times. Please try again.</p>';
         });
     }
 
@@ -535,45 +605,66 @@
       dayIndicatorEl.innerHTML = '';
       
       prayerTimesForDays.forEach((dayData, index) => {
-        const dayCard = document.createElement('div');
-        dayCard.className = 'day-card';
-        
-        const date = new Date(dayData.date.gregorian.date);
-        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        
-        dayCard.innerHTML = `
-          <h3>${dayName}, ${dateStr}</h3>
-          <div class="times-container"></div>
-        `;
-        
-        const timesContainer = dayCard.querySelector('.times-container');
-        
-        Object.entries(prayerIcons).forEach(([name, icon]) => {
-          const row = document.createElement('div');
-          row.className = 'time-row';
-          row.innerHTML = `
-            <span class="time-label"><span class="icon">${icon}</span>${name}</span>
-            <span>${to12Hour(dayData.timings[name])}</span>
+        try {
+          const dateStr = dayData.date.gregorian.date;
+          const parts = dateStr.split('-');
+          const date = new Date(parts[2], parts[1]-1, parts[0]);
+          
+          const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+          const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          
+          const dayCard = document.createElement('div');
+          dayCard.className = 'day-card';
+          dayCard.innerHTML = `
+            <h3>${dayName}, ${formattedDate}</h3>
+            <div class="times-container"></div>
           `;
-          timesContainer.appendChild(row);
-        });
-        
-        timeContainerEl.appendChild(dayCard);
-        
-        // Add day indicator dot
-        const dot = document.createElement('div');
-        dot.className = `day-dot ${index === 0 ? 'active' : ''}`;
-        dayIndicatorEl.appendChild(dot);
+          
+          const timesContainer = dayCard.querySelector('.times-container');
+          
+          Object.entries(prayerIcons).forEach(([name, icon]) => {
+            const timeStr = dayData.timings[name].split(' ')[0]; // Remove timezone if present
+            const row = document.createElement('div');
+            row.className = 'time-row';
+            row.innerHTML = `
+              <span class="time-label"><span class="icon">${icon}</span>${name}</span>
+              <span>${to12Hour(timeStr)}</span>
+            `;
+            timesContainer.appendChild(row);
+          });
+          
+          timeContainerEl.appendChild(dayCard);
+          
+          // Add day indicator dot
+          const dot = document.createElement('div');
+          dot.className = `day-dot ${index === 0 ? 'active' : ''}`;
+          dayIndicatorEl.appendChild(dot);
+        } catch (e) {
+          console.error('Error displaying prayer times for day:', e);
+        }
       });
       
       // Set current date display
-      const today = new Date(prayerTimesForDays[0].date.gregorian.date);
-      datesEl.textContent = today.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        month: 'long', 
-        day: 'numeric' 
-      });
+      try {
+        if (prayerTimesForDays[0]) {
+          const dateStr = prayerTimesForDays[0].date.gregorian.date;
+          const parts = dateStr.split('-');
+          const today = new Date(parts[2], parts[1]-1, parts[0]);
+          
+          datesEl.textContent = today.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        }
+      } catch (e) {
+        console.error('Error setting current date:', e);
+        datesEl.textContent = new Date().toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      }
     }
 
     // Qibla Direction
@@ -600,7 +691,10 @@
       kaabaMarkerEl.style.top = `${kaabaY}px`;
       
       calculateDistance(lat, lng);
-      updateCompass();
+      
+      if (document.getElementById('qibla-tab').classList.contains('hidden') === false) {
+        updateCompass();
+      }
     }
 
     function calculateDistance(lat, lng) {
@@ -628,15 +722,40 @@
         DeviceOrientationEvent.requestPermission()
           .then(response => {
             if (response === 'granted') {
-              window.addEventListener('deviceorientation', handleOrientation);
+              startCompass();
             } else {
               qiblaIndicatorEl.textContent = "Please enable device orientation permissions";
             }
           })
           .catch(console.error);
       } else {
-        window.addEventListener('deviceorientation', handleOrientation);
+        startCompass();
       }
+    }
+    
+    function startCompass() {
+      window.addEventListener('deviceorientation', handleOrientation);
+      compassActive = true;
+      qiblaIndicatorEl.textContent = "Rotate your device to find Qibla direction";
+    }
+    
+    function stopCompass() {
+      window.removeEventListener('deviceorientation', handleOrientation);
+      compassActive = false;
+    }
+    
+    function resetCompass() {
+      compassEl.style.transform = 'rotate(0deg)';
+      currentHeading = 0;
+      updateCompassFeedback(360 - currentQiblaDirection);
+    }
+    
+    function recalibrateCompass() {
+      stopCompass();
+      setTimeout(() => {
+        updateCompass();
+        qiblaIndicatorEl.textContent = "Recalibrating compass...";
+      }, 100);
     }
 
     function handleOrientation(event) {
@@ -650,10 +769,18 @@
       currentHeading = heading;
       compassEl.style.transform = `rotate(${-heading}deg)`;
       
+      // Update arrow to point to current heading
+      compassArrowEl.style.transform = `rotate(${heading}deg)`;
+      
       // Calculate angle difference between current heading and Qibla direction
-      const angleDiff = Math.abs((currentHeading - currentQiblaDirection + 360) % 360);
+      updateCompassFeedback(heading);
+    }
+    
+    function updateCompassFeedback(heading) {
+      const angleDiff = Math.abs((heading - currentQiblaDirection + 360) % 360);
       const angleDiff2 = 360 - angleDiff;
       const minDiff = Math.min(angleDiff, angleDiff2);
+      const direction = angleDiff < angleDiff2 ? 'left' : 'right';
       
       // Update indicator
       if (minDiff < 10) { // Within 10 degrees
@@ -665,10 +792,10 @@
       } else {
         if (isFacingKaaba) {
           isFacingKaaba = false;
-          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${angleDiff < angleDiff2 ? 'left' : 'right'} to face Kaaba`;
+          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${direction} to face Kaaba`;
           qiblaIndicatorEl.classList.remove('qibla-aligned');
         } else {
-          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${angleDiff < angleDiff2 ? 'left' : 'right'} to face Kaaba`;
+          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${direction} to face Kaaba`;
         }
       }
     }
@@ -678,11 +805,14 @@
       const now = new Date();
       const currentTime = now.getHours() * 60 + now.getMinutes();
       let nextPrayer = "Fajr";
-      let nextTime = prayerTimesForDays[0].timings.Fajr;
+      let nextTime = "00:00";
       let minDiff = Infinity;
 
-      Object.entries(prayerTimesForDays[0].timings).forEach(([name, time]) => {
+      if (!prayerTimesForDays[0]) return;
+
+      Object.entries(prayerTimesForDays[0].timings).forEach(([name, timeStr]) => {
         if (prayerIcons[name]) {
+          const time = timeStr.split(' ')[0]; // Remove timezone if present
           const [h, m] = time.split(':').map(Number);
           const prayerTime = h * 60 + m;
           const diff = prayerTime - currentTime;
@@ -701,8 +831,13 @@
       });
 
       if (minDiff === Infinity) {
-        minDiff = (24 * 60 - currentTime) + 
-                 (parseInt(nextTime.split(':')[0]) * 60 + parseInt(nextTime.split(':')[1]));
+        // If all prayers have passed for today, show first prayer of next day
+        if (prayerTimesForDays[1]) {
+          nextPrayer = "Fajr";
+          nextTime = prayerTimesForDays[1].timings.Fajr.split(' ')[0];
+          const [h, m] = nextTime.split(':').map(Number);
+          minDiff = (24 * 60 - currentTime) + (h * 60 + m);
+        }
       }
 
       const hours = Math.floor(minDiff / 60);
@@ -895,6 +1030,8 @@
       
       if (tabName === 'qibla' && currentLocation.latitude) {
         updateCompass();
+      } else if (compassActive) {
+        stopCompass();
       }
     }
 
