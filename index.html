@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Prayer Times</title>
   <style>
     :root {
@@ -24,6 +24,8 @@
       --input-text: #333;
       --compass-border: #fff;
       --compass-text: #fff;
+      --success-color: #34C759;
+      --warning-color: #FF3B30;
     }
 
     .dark-mode {
@@ -46,6 +48,11 @@
       --compass-text: #ddd;
     }
 
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     body {
       font-family: 'Helvetica Neue', sans-serif;
       margin: 0;
@@ -54,21 +61,75 @@
       transition: all 0.5s ease;
       background: var(--bg-night);
       min-height: 100vh;
+      touch-action: manipulation;
+      overflow-x: hidden;
     }
 
-    .container { max-width: 500px; margin: auto; padding: 20px; }
-    h1 { font-weight: 300; font-size: 2rem; margin-bottom: 5px; }
+    .container { 
+      max-width: 500px; 
+      margin: auto; 
+      padding: 20px;
+      padding-bottom: 30px;
+    }
+    
+    h1 { 
+      font-weight: 300; 
+      font-size: 2rem; 
+      margin-bottom: 5px; 
+    }
+    
     .clock { font-size: 1.2rem; margin-top: 5px; }
     .dates { font-size: 1rem; margin-bottom: 10px; opacity: 0.9; }
-    .search-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 10px; }
-    input, select { 
+    
+    .search-container {
+      position: relative;
+      margin-bottom: 10px;
+    }
+    
+    .search-bar { 
+      display: flex; 
+      gap: 10px; 
+      margin-bottom: 10px; 
+    }
+    
+    input { 
       padding: 10px; 
       border-radius: 8px; 
       border: none; 
       font-size: 1rem; 
       background: var(--input-bg);
       color: var(--input-text);
+      width: 100%;
     }
+    
+    .autocomplete-items {
+      position: absolute;
+      border: 1px solid #d4d4d4;
+      border-bottom: none;
+      border-top: none;
+      z-index: 99;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border-radius: 0 0 8px 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .autocomplete-items div {
+      padding: 10px;
+      cursor: pointer;
+      background-color: #fff; 
+      border-bottom: 1px solid #d4d4d4; 
+      color: #333;
+      text-align: left;
+    }
+    
+    .autocomplete-items div:hover {
+      background-color: #e9e9e9; 
+    }
+    
     button { 
       padding: 10px 15px; 
       background: var(--button-bg); 
@@ -78,8 +139,10 @@
       cursor: pointer; 
       transition: transform 0.2s, opacity 0.2s;
     }
+    
     button:hover { opacity: 0.9; transform: scale(1.02); }
     button:active { transform: scale(0.98); }
+    
     .card { 
       background: var(--card-bg); 
       backdrop-filter: blur(10px); 
@@ -88,6 +151,29 @@
       box-shadow: 0 5px 15px rgba(0,0,0,0.2); 
       margin-top: 15px; 
     }
+    
+    .time-container {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      gap: 15px;
+      padding-bottom: 10px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    
+    .time-container::-webkit-scrollbar {
+      display: none;
+    }
+    
+    .day-card {
+      min-width: 100%;
+      scroll-snap-align: start;
+      background: rgba(0,0,0,0.1);
+      border-radius: 12px;
+      padding: 15px;
+    }
+    
     .time-row { 
       font-size: 1.1rem; 
       margin: 10px 0; 
@@ -95,9 +181,10 @@
       justify-content: space-between; 
       align-items: center; 
     }
+    
     .icon { margin-right: 10px; }
-    .dropdown { margin-top: 10px; }
     .time-label { display: flex; align-items: center; }
+    
     .tab-container { 
       display: flex; 
       justify-content: center; 
@@ -106,6 +193,7 @@
       border-radius: 8px;
       padding: 5px;
     }
+    
     .tab { 
       padding: 10px 20px; 
       background: transparent; 
@@ -115,6 +203,7 @@
       border-radius: 5px;
       transition: all 0.3s;
     }
+    
     .tab.active { 
       background: var(--tab-active-bg);
       font-weight: bold;
@@ -127,6 +216,7 @@
       height: 250px;
       margin: 20px auto;
     }
+    
     .compass {
       width: 100%;
       height: 100%;
@@ -135,7 +225,9 @@
       position: relative;
       background: rgba(0,0,0,0.1);
       box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      transition: transform 0.1s ease-out;
     }
+    
     .compass-rose {
       position: absolute;
       width: 100%;
@@ -143,16 +235,18 @@
       background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><circle cx="100" cy="100" r="95" fill="none" stroke="%23ffffff50" stroke-width="2"/><line x1="100" y1="10" x2="100" y2="30" stroke="%23ffffff" stroke-width="2"/><line x1="100" y1="170" x2="100" y2="190" stroke="%23ffffff" stroke-width="2"/><line x1="10" y1="100" x2="30" y2="100" stroke="%23ffffff" stroke-width="2"/><line x1="170" y1="100" x2="190" y2="100" stroke="%23ffffff" stroke-width="2"/></svg>');
       background-size: contain;
     }
+    
     .compass-arrow {
       position: absolute;
       top: 50%;
       left: 50%;
       width: 80%;
       height: 4px;
-      background: linear-gradient(to right, transparent 10%, #ff3b30 50%, transparent 90%);
+      background: linear-gradient(to right, transparent, #ff3b30 50%, transparent);
       transform-origin: left center;
       z-index: 2;
     }
+    
     .compass-center {
       position: absolute;
       top: 50%;
@@ -164,6 +258,7 @@
       transform: translate(-50%, -50%);
       z-index: 3;
     }
+    
     .kaaba-marker {
       position: absolute;
       width: 30px;
@@ -173,42 +268,88 @@
       transform: translate(-50%, -50%);
       z-index: 4;
     }
+    
     .compass-direction {
       position: absolute;
       color: var(--compass-text);
       font-weight: bold;
       font-size: 1rem;
     }
+    
     .compass-degree {
       position: absolute;
       color: var(--compass-text);
       font-size: 0.8rem;
     }
     
+    .qibla-indicator {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.3);
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+    
+    .qibla-aligned {
+      background: var(--success-color);
+      color: white;
+    }
+    
     .hidden { display: none; }
     .settings { text-align: left; margin-top: 15px; }
+    
     .next-prayer { 
       font-weight: bold; 
-      margin-top: 10px; 
-      padding: 10px; 
+      margin-top: 20px; 
+      padding: 15px; 
       background: var(--next-prayer-bg); 
       border-radius: 8px;
+      font-size: 1.1rem;
     }
+    
     .save-btn { 
       margin-top: 20px; 
       width: 100%; 
       font-weight: bold;
-      background: #34C759 !important;
+      background: var(--success-color) !important;
     }
+    
     .settings-option {
       display: flex;
       align-items: center;
       padding: 8px 0;
     }
+    
     .settings-option input { margin-right: 10px; }
-    .kaaba-label { color: #FF3B30; font-weight: bold; }
-    .user-label { color: #34C759; font-weight: bold; }
-    .distance-info { margin-top: 10px; font-size: 0.9rem; }
+    .kaaba-label { color: var(--warning-color); font-weight: bold; }
+    
+    /* Swipe indicator */
+    .day-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    
+    .day-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      transition: all 0.3s;
+    }
+    
+    .day-dot.active {
+      background: var(--text-color);
+      transform: scale(1.3);
+    }
+    
+    @media (max-width: 400px) {
+      .search-bar {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
@@ -224,49 +365,42 @@
     </div>
 
     <div id="prayer-times-tab">
-      <div class="search-bar">
-        <input type="text" id="city" placeholder="City">
-        <input type="text" id="country" placeholder="Country">
-        <button onclick="searchLocation()">Search</button>
-        <button onclick="detectLocation()">📍 Detect</button>
+      <div class="search-container">
+        <div class="search-bar">
+          <input type="text" id="city" placeholder="Search for a city" autocomplete="off">
+          <button onclick="detectLocation()">📍 Detect</button>
+        </div>
+        <div id="autocomplete-results" class="autocomplete-items"></div>
       </div>
 
-      <select id="savedLocations" class="dropdown" onchange="loadSavedLocation(this.value)">
-        <option value="">Saved Locations</option>
-      </select>
-
-      <div id="times" class="card">Enter a location or use detect</div>
+      <div class="time-container" id="time-container">
+        <!-- Days will be loaded here -->
+      </div>
+      <div class="day-indicator" id="day-indicator">
+        <!-- Day indicators will be added here -->
+      </div>
+      
       <div id="next-prayer" class="next-prayer"></div>
     </div>
 
     <div id="qibla-tab" class="hidden">
       <div class="compass-container">
-        <div class="compass">
+        <div class="compass" id="compass">
           <div class="compass-rose"></div>
-          <div class="compass-arrow" id="compass-arrow"></div>
+          <div class="compass-arrow"></div>
           <div class="compass-center"></div>
           <div class="kaaba-marker" id="kaaba-marker"></div>
           
-          <!-- Compass Directions -->
           <div class="compass-direction" style="top: 10px; left: 50%; transform: translateX(-50%);">N</div>
           <div class="compass-direction" style="bottom: 10px; left: 50%; transform: translateX(-50%);">S</div>
           <div class="compass-direction" style="top: 50%; left: 10px; transform: translateY(-50%);">W</div>
           <div class="compass-direction" style="top: 50%; right: 10px; transform: translateY(-50%);">E</div>
-          
-          <!-- Degree Markers -->
-          <div class="compass-degree" style="top: 30px; left: 50%; transform: translateX(-50%);">0°</div>
-          <div class="compass-degree" style="top: 50%; right: 30px; transform: translateY(-50%);">90°</div>
-          <div class="compass-degree" style="bottom: 30px; left: 50%; transform: translateX(-50%);">180°</div>
-          <div class="compass-degree" style="top: 50%; left: 30px; transform: translateY(-50%);">270°</div>
         </div>
       </div>
-      <div id="qibla-info" class="card">
-        <h2>Qibla Direction</h2>
-        <p><span class="user-label">You are in:</span> <span id="current-location">Unknown</span></p>
-        <p>Facing: <span id="qibla-degrees">0°</span> from North</p>
-        <p><span class="kaaba-label">Toward Kaaba in Mecca</span></p>
+      <div id="qibla-indicator" class="qibla-indicator">
+        Rotate your device to find Qibla direction
       </div>
-      <div id="distance-info" class="distance-info">Distance: calculating...</div>
+      <div id="distance-info" class="distance-info"></div>
     </div>
 
     <div id="settings-tab" class="hidden">
@@ -311,79 +445,135 @@
     let currentQiblaDirection = 0;
     let distanceToKaaba = 0;
     let currentPrayerTime = "Isha";
+    let currentHeading = 0;
+    let isFacingKaaba = false;
+    let touchStartX = 0;
+    let currentDayIndex = 0;
+    let prayerTimesForDays = [];
 
     // DOM Elements
     const clockEl = document.getElementById('clock');
     const datesEl = document.getElementById('dates');
-    const timesEl = document.getElementById('times');
-    const nextPrayerEl = document.getElementById('next-prayer');
-    const currentLocationEl = document.getElementById('current-location');
-    const qiblaDegreesEl = document.getElementById('qibla-degrees');
+    const timeContainerEl = document.getElementById('time-container');
+    const dayIndicatorEl = document.getElementById('day-indicator');
     const distanceInfoEl = document.getElementById('distance-info');
-    const compassArrowEl = document.getElementById('compass-arrow');
+    const compassEl = document.getElementById('compass');
     const kaabaMarkerEl = document.getElementById('kaaba-marker');
+    const qiblaIndicatorEl = document.getElementById('qibla-indicator');
+    const nextPrayerEl = document.getElementById('next-prayer');
+    const cityInputEl = document.getElementById('city');
+    const autocompleteResultsEl = document.getElementById('autocomplete-results');
 
     // Initialize
     function init() {
       loadSettings();
       updateClock();
       setInterval(updateClock, 1000);
-      updateSavedLocationsDropdown();
       
-      if (!localStorage.getItem('savedLocations')) {
+      // Load last saved location or default
+      const savedLocations = JSON.parse(localStorage.getItem('savedLocations') || '[]');
+      if (savedLocations.length > 0) {
+        const lastLocation = savedLocations[savedLocations.length - 1];
+        cityInputEl.value = lastLocation.city;
+        currentLocation = lastLocation;
+        fetchPrayerTimes(lastLocation.city, lastLocation.country, lastLocation.latitude, lastLocation.longitude);
+      } else {
         fetchPrayerTimes('Mecca', 'Saudi Arabia');
       }
+      
+      // Setup touch events for swipe
+      setupSwipe();
+      
+      // Setup autocomplete
+      setupAutocomplete();
     }
 
     // Clock
     function updateClock() {
       clockEl.textContent = new Date().toLocaleTimeString();
       if (currentLocation.timings) {
-        updateNextPrayer();
         updateBackgroundBasedOnTime();
+        updateNextPrayer();
       }
     }
 
     // Prayer Times
-    function fetchPrayerTimes(city, country, latitude, longitude) {
+    function fetchPrayerTimes(city, country, latitude, longitude, date = new Date()) {
       const method = 2;
       const school = localStorage.getItem('asrMethod') === 'hanafi' ? 1 : 0;
-      const url = latitude && longitude 
-        ? `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=${method}&school=${school}`
-        : `https://api.aladhan.com/v1/timingsByCity?city=${city}&country=${country}&method=${method}&school=${school}`;
+      const month = date.getMonth() + 1;
+      const year = date.getFullYear();
+      
+      let url;
+      if (latitude && longitude) {
+        url = `https://api.aladhan.com/v1/calendar?latitude=${latitude}&longitude=${longitude}&method=${method}&school=${school}&month=${month}&year=${year}`;
+      } else {
+        url = `https://api.aladhan.com/v1/calendarByCity?city=${city}&country=${country}&method=${method}&school=${school}&month=${month}&year=${year}`;
+      }
 
       fetch(url)
         .then(res => res.json())
         .then(data => {
-          const times = data.data.timings;
-          const hijri = data.data.date.hijri;
-          const gregorian = data.data.date.gregorian;
-          
-          datesEl.innerHTML = `${gregorian.date} | ${hijri.date} (${hijri.weekday.en})`;
-          timesEl.innerHTML = `<h2>${city}, ${country}</h2>`;
-          
-          Object.entries(prayerIcons).forEach(([name, icon]) => {
-            const row = document.createElement('div');
-            row.className = 'time-row';
-            row.innerHTML = `
-              <span class="time-label"><span class="icon">${icon}</span>${name}</span>
-              <span>${to12Hour(times[name])}</span>
-            `;
-            timesEl.appendChild(row);
-          });
-
-          currentLocation = { city, country, latitude, longitude, timings: times };
-          updateBackgroundBasedOnTime();
-          
-          if (latitude && longitude) {
-            calculateQiblaDirection(latitude, longitude);
-            calculateDistance(latitude, longitude);
+          if (data.code === 200) {
+            prayerTimesForDays = data.data.slice(0, 5); // Get next 5 days
+            displayPrayerTimes();
+            saveLocation(city, country, latitude, longitude);
+            
+            // Calculate Qibla direction if we have coordinates
+            if (latitude && longitude) {
+              calculateQiblaDirection(latitude, longitude);
+            }
           }
         })
         .catch(err => {
-          timesEl.innerHTML = 'Failed to fetch prayer times.';
-          console.error(err);
+          console.error('Failed to fetch prayer times:', err);
         });
+    }
+
+    function displayPrayerTimes() {
+      timeContainerEl.innerHTML = '';
+      dayIndicatorEl.innerHTML = '';
+      
+      prayerTimesForDays.forEach((dayData, index) => {
+        const dayCard = document.createElement('div');
+        dayCard.className = 'day-card';
+        
+        const date = new Date(dayData.date.gregorian.date);
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        
+        dayCard.innerHTML = `
+          <h3>${dayName}, ${dateStr}</h3>
+          <div class="times-container"></div>
+        `;
+        
+        const timesContainer = dayCard.querySelector('.times-container');
+        
+        Object.entries(prayerIcons).forEach(([name, icon]) => {
+          const row = document.createElement('div');
+          row.className = 'time-row';
+          row.innerHTML = `
+            <span class="time-label"><span class="icon">${icon}</span>${name}</span>
+            <span>${to12Hour(dayData.timings[name])}</span>
+          `;
+          timesContainer.appendChild(row);
+        });
+        
+        timeContainerEl.appendChild(dayCard);
+        
+        // Add day indicator dot
+        const dot = document.createElement('div');
+        dot.className = `day-dot ${index === 0 ? 'active' : ''}`;
+        dayIndicatorEl.appendChild(dot);
+      });
+      
+      // Set current date display
+      const today = new Date(prayerTimesForDays[0].date.gregorian.date);
+      datesEl.textContent = today.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'long', 
+        day: 'numeric' 
+      });
     }
 
     // Qibla Direction
@@ -399,8 +589,17 @@
       );
       
       currentQiblaDirection = (psi + 360) % 360;
-      currentLocationEl.textContent = `${currentLocation.city}, ${currentLocation.country}`;
-      qiblaDegreesEl.textContent = `${currentQiblaDirection.toFixed(1)}°`;
+      
+      // Position Kaaba marker
+      const angle = (360 - currentQiblaDirection) * Math.PI / 180;
+      const radius = 125; // Half of compass width
+      const kaabaX = radius + (radius - 20) * Math.sin(angle);
+      const kaabaY = radius - (radius - 20) * Math.cos(angle);
+      
+      kaabaMarkerEl.style.left = `${kaabaX}px`;
+      kaabaMarkerEl.style.top = `${kaabaY}px`;
+      
+      calculateDistance(lat, lng);
       updateCompass();
     }
 
@@ -419,26 +618,19 @@
 
     // Compass
     function updateCompass() {
-      // Position Kaaba marker
-      const angle = (360 - currentQiblaDirection) * Math.PI / 180;
-      const radius = 125; // Half of compass width
-      const kaabaX = radius + (radius - 20) * Math.sin(angle);
-      const kaabaY = radius - (radius - 20) * Math.cos(angle);
-      
-      kaabaMarkerEl.style.left = `${kaabaX}px`;
-      kaabaMarkerEl.style.top = `${kaabaY}px`;
-      
-      // Update compass arrow
-      compassArrowEl.style.transform = `translateX(-50%) rotate(${currentQiblaDirection}deg)`;
-      
-      // Enable device orientation if available
-      if (!window.DeviceOrientationEvent) return;
+      if (!window.DeviceOrientationEvent) {
+        qiblaIndicatorEl.textContent = "Compass not supported on your device";
+        return;
+      }
       
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS 13+ requires permission
         DeviceOrientationEvent.requestPermission()
           .then(response => {
             if (response === 'granted') {
               window.addEventListener('deviceorientation', handleOrientation);
+            } else {
+              qiblaIndicatorEl.textContent = "Please enable device orientation permissions";
             }
           })
           .catch(console.error);
@@ -455,8 +647,30 @@
         heading = event.alpha; // Android/other
       }
       
-      const arrowAngle = (360 - heading + currentQiblaDirection) % 360;
-      compassArrowEl.style.transform = `translateX(-50%) rotate(${arrowAngle}deg)`;
+      currentHeading = heading;
+      compassEl.style.transform = `rotate(${-heading}deg)`;
+      
+      // Calculate angle difference between current heading and Qibla direction
+      const angleDiff = Math.abs((currentHeading - currentQiblaDirection + 360) % 360);
+      const angleDiff2 = 360 - angleDiff;
+      const minDiff = Math.min(angleDiff, angleDiff2);
+      
+      // Update indicator
+      if (minDiff < 10) { // Within 10 degrees
+        if (!isFacingKaaba) {
+          isFacingKaaba = true;
+          qiblaIndicatorEl.textContent = "You are facing the Kaaba!";
+          qiblaIndicatorEl.classList.add('qibla-aligned');
+        }
+      } else {
+        if (isFacingKaaba) {
+          isFacingKaaba = false;
+          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${angleDiff < angleDiff2 ? 'left' : 'right'} to face Kaaba`;
+          qiblaIndicatorEl.classList.remove('qibla-aligned');
+        } else {
+          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${angleDiff < angleDiff2 ? 'left' : 'right'} to face Kaaba`;
+        }
+      }
     }
 
     // Next Prayer
@@ -464,10 +678,10 @@
       const now = new Date();
       const currentTime = now.getHours() * 60 + now.getMinutes();
       let nextPrayer = "Fajr";
-      let nextTime = currentLocation.timings.Fajr;
+      let nextTime = prayerTimesForDays[0].timings.Fajr;
       let minDiff = Infinity;
 
-      Object.entries(currentLocation.timings).forEach(([name, time]) => {
+      Object.entries(prayerTimesForDays[0].timings).forEach(([name, time]) => {
         if (prayerIcons[name]) {
           const [h, m] = time.split(':').map(Number);
           const prayerTime = h * 60 + m;
@@ -504,27 +718,54 @@
     }
 
     // Location
-    function searchLocation() {
-      const city = document.getElementById('city').value.trim();
-      const country = document.getElementById('country').value.trim();
-      if (!city || !country) return alert('Please enter city and country');
-
-      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.results?.length > 0) {
-            const { latitude, longitude } = data.results[0];
-            saveLocation(city, country, latitude, longitude);
-            fetchPrayerTimes(city, country, latitude, longitude);
-          } else {
-            saveLocation(city, country);
-            fetchPrayerTimes(city, country);
-          }
-        })
-        .catch(() => {
-          saveLocation(city, country);
-          fetchPrayerTimes(city, country);
-        });
+    function setupAutocomplete() {
+      cityInputEl.addEventListener('input', function() {
+        const query = this.value.trim();
+        if (query.length < 2) {
+          autocompleteResultsEl.innerHTML = '';
+          return;
+        }
+        
+        fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=5`)
+          .then(res => res.json())
+          .then(data => {
+            autocompleteResultsEl.innerHTML = '';
+            if (data.results && data.results.length > 0) {
+              data.results.forEach(result => {
+                const item = document.createElement('div');
+                const city = result.name || "Unknown";
+                const state = result.admin1 || "";
+                const country = result.country || "";
+                
+                item.textContent = `${city}${state ? ', ' + state : ''}`;
+                item.addEventListener('click', function() {
+                  cityInputEl.value = city;
+                  autocompleteResultsEl.innerHTML = '';
+                  
+                  // Save and fetch prayer times
+                  currentLocation = { 
+                    city, 
+                    country: result.country || "",
+                    latitude: result.latitude, 
+                    longitude: result.longitude 
+                  };
+                  fetchPrayerTimes(city, result.country, result.latitude, result.longitude);
+                });
+                autocompleteResultsEl.appendChild(item);
+              });
+            }
+          })
+          .catch(() => {
+            autocompleteResultsEl.innerHTML = '';
+          });
+      });
+      
+      // Hide autocomplete when clicking elsewhere
+      document.addEventListener('click', function(e) {
+        if (e.target !== cityInputEl) {
+          autocompleteResultsEl.innerHTML = '';
+        }
+      });
     }
 
     function detectLocation() {
@@ -536,41 +777,79 @@
           .then(res => res.json())
           .then(data => {
             const city = data.city || data.locality || "Unknown";
-            const country = data.countryCode || "US";
-            document.getElementById('city').value = city;
-            document.getElementById('country').value = country;
-            saveLocation(city, country, latitude, longitude);
-            fetchPrayerTimes(city, country, latitude, longitude);
+            cityInputEl.value = city;
+            currentLocation = { 
+              city, 
+              country: data.countryCode || "",
+              latitude, 
+              longitude 
+            };
+            fetchPrayerTimes(city, data.countryCode, latitude, longitude);
           })
           .catch(console.error);
       }, alert);
     }
 
     function saveLocation(city, country, latitude, longitude) {
-      const saved = JSON.parse(localStorage.getItem('savedLocations') || []);
-      if (!saved.some(loc => loc.city === city && loc.country === country)) {
+      const saved = JSON.parse(localStorage.getItem('savedLocations') || '[]');
+      
+      // Check for duplicates
+      const exists = saved.some(loc => 
+        loc.city.toLowerCase() === city.toLowerCase() && 
+        loc.country.toLowerCase() === country.toLowerCase()
+      );
+      
+      if (!exists) {
         saved.push({ city, country, latitude, longitude });
         localStorage.setItem('savedLocations', JSON.stringify(saved));
-        updateSavedLocationsDropdown();
       }
+      
+      currentLocation = { city, country, latitude, longitude };
     }
 
-    function loadSavedLocation(val) {
-      if (!val) return;
-      const { city, country, latitude, longitude } = JSON.parse(val);
-      fetchPrayerTimes(city, country, latitude, longitude);
+    // Swipe functionality
+    function setupSwipe() {
+      timeContainerEl.addEventListener('touchstart', function(e) {
+        touchStartX = e.touches[0].clientX;
+      }, { passive: true });
+      
+      timeContainerEl.addEventListener('touchend', function(e) {
+        if (!touchStartX) return;
+        
+        const touchEndX = e.changedTouches[0].clientX;
+        const diff = touchStartX - touchEndX;
+        
+        if (Math.abs(diff) > 50) {
+          if (diff > 0 && currentDayIndex < prayerTimesForDays.length - 1) {
+            // Swipe left
+            currentDayIndex++;
+          } else if (diff < 0 && currentDayIndex > 0) {
+            // Swipe right
+            currentDayIndex--;
+          }
+          
+          touchStartX = 0;
+          scrollToDay(currentDayIndex);
+        }
+      }, { passive: true });
     }
-
-    function updateSavedLocationsDropdown() {
-      const dropdown = document.getElementById('savedLocations');
-      dropdown.innerHTML = '<option value="">Saved Locations</option>';
-      const saved = JSON.parse(localStorage.getItem('savedLocations') || '[]');
-      saved.forEach(loc => {
-        const opt = document.createElement('option');
-        opt.value = JSON.stringify(loc);
-        opt.textContent = `${loc.city}, ${loc.country}`;
-        dropdown.appendChild(opt);
-      });
+    
+    function scrollToDay(index) {
+      const dayCards = timeContainerEl.querySelectorAll('.day-card');
+      const dayDots = dayIndicatorEl.querySelectorAll('.day-dot');
+      
+      if (index >= 0 && index < dayCards.length) {
+        dayCards[index].scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+        
+        // Update active dot
+        dayDots.forEach((dot, i) => {
+          dot.classList.toggle('active', i === index);
+        });
+      }
     }
 
     // Settings
