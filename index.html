@@ -6,7 +6,14 @@
   <title>Prayer Times</title>
   <style>
     :root {
-      --bg-color: linear-gradient(to top, #1e3c72, #2a5298);
+      --bg-day: linear-gradient(to top, #1e3c72, #2a5298);
+      --bg-sunrise: linear-gradient(to top, #f6d365, #fda085);
+      --bg-dhuhr: linear-gradient(to top, #56ccf2, #2f80ed);
+      --bg-asr: linear-gradient(to top, #f2994a, #f2c94c);
+      --bg-maghrib: linear-gradient(to top, #e96443, #904e95);
+      --bg-night: linear-gradient(to top, #141e30, #243b55);
+      --bg-dark-mode: linear-gradient(to top, #121212, #282828);
+      
       --card-bg: rgba(255,255,255,0.1);
       --text-color: #fff;
       --button-bg: #007aff;
@@ -15,18 +22,28 @@
       --next-prayer-bg: rgba(255,255,255,0.2);
       --input-bg: rgba(255,255,255,0.9);
       --input-text: #333;
+      --compass-border: #fff;
+      --compass-text: #fff;
     }
 
     .dark-mode {
-      --bg-color: linear-gradient(to top, #2d2d2d, #1a1a1a);
-      --card-bg: rgba(0,0,0,0.4);
+      --bg-day: var(--bg-dark-mode);
+      --bg-sunrise: var(--bg-dark-mode);
+      --bg-dhuhr: var(--bg-dark-mode);
+      --bg-asr: var(--bg-dark-mode);
+      --bg-maghrib: var(--bg-dark-mode);
+      --bg-night: var(--bg-dark-mode);
+      
+      --card-bg: rgba(0,0,0,0.3);
       --text-color: #f0f0f0;
       --button-bg: #1a73e8;
-      --tab-bg: rgba(0,0,0,0.4);
-      --tab-active-bg: rgba(0,0,0,0.6);
-      --next-prayer-bg: rgba(0,0,0,0.4);
+      --tab-bg: rgba(0,0,0,0.3);
+      --tab-active-bg: rgba(0,0,0,0.5);
+      --next-prayer-bg: rgba(0,0,0,0.3);
       --input-bg: rgba(255,255,255,0.15);
       --input-text: #fff;
+      --compass-border: #aaa;
+      --compass-text: #ddd;
     }
 
     body {
@@ -34,8 +51,8 @@
       margin: 0;
       text-align: center;
       color: var(--text-color);
-      transition: all 0.3s ease;
-      background: var(--bg-color);
+      transition: all 0.5s ease;
+      background: var(--bg-night);
       min-height: 100vh;
     }
 
@@ -103,7 +120,7 @@
       font-weight: bold;
     }
     
-    /* Enhanced Compass Styles */
+    /* Compass Styles */
     .compass-container {
       position: relative;
       width: 250px;
@@ -114,7 +131,7 @@
       width: 100%;
       height: 100%;
       border-radius: 50%;
-      border: 2px solid var(--text-color);
+      border: 2px solid var(--compass-border);
       position: relative;
       background: rgba(0,0,0,0.1);
       box-shadow: 0 0 20px rgba(0,0,0,0.3);
@@ -123,7 +140,7 @@
       position: absolute;
       width: 100%;
       height: 100%;
-      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><circle cx="100" cy="100" r="95" fill="none" stroke="%23ffffff50" stroke-width="2"/><line x1="100" y1="10" x2="100" y2="30" stroke="%23ffffff" stroke-width="2"/><line x1="100" y1="170" x2="100" y2="190" stroke="%23ffffff" stroke-width="2"/><line x1="10" y1="100" x2="30" y2="100" stroke="%23ffffff" stroke-width="2"/><line x1="170" y1="100" x2="190" y2="100" stroke="%23ffffff" stroke-width="2"/><text x="100" y="40" fill="%23ffffff" text-anchor="middle" font-size="14">N</text><text x="100" y="185" fill="%23ffffff" text-anchor="middle" font-size="14">S</text><text x="30" y="110" fill="%23ffffff" text-anchor="middle" font-size="14">W</text><text x="170" y="110" fill="%23ffffff" text-anchor="middle" font-size="14">E</text></svg>');
+      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><circle cx="100" cy="100" r="95" fill="none" stroke="%23ffffff50" stroke-width="2"/><line x1="100" y1="10" x2="100" y2="30" stroke="%23ffffff" stroke-width="2"/><line x1="100" y1="170" x2="100" y2="190" stroke="%23ffffff" stroke-width="2"/><line x1="10" y1="100" x2="30" y2="100" stroke="%23ffffff" stroke-width="2"/><line x1="170" y1="100" x2="190" y2="100" stroke="%23ffffff" stroke-width="2"/></svg>');
       background-size: contain;
     }
     .compass-arrow {
@@ -155,6 +172,17 @@
       background-size: contain;
       transform: translate(-50%, -50%);
       z-index: 4;
+    }
+    .compass-direction {
+      position: absolute;
+      color: var(--compass-text);
+      font-weight: bold;
+      font-size: 1rem;
+    }
+    .compass-degree {
+      position: absolute;
+      color: var(--compass-text);
+      font-size: 0.8rem;
     }
     
     .hidden { display: none; }
@@ -218,6 +246,18 @@
           <div class="compass-arrow" id="compass-arrow"></div>
           <div class="compass-center"></div>
           <div class="kaaba-marker" id="kaaba-marker"></div>
+          
+          <!-- Compass Directions -->
+          <div class="compass-direction" style="top: 10px; left: 50%; transform: translateX(-50%);">N</div>
+          <div class="compass-direction" style="bottom: 10px; left: 50%; transform: translateX(-50%);">S</div>
+          <div class="compass-direction" style="top: 50%; left: 10px; transform: translateY(-50%);">W</div>
+          <div class="compass-direction" style="top: 50%; right: 10px; transform: translateY(-50%);">E</div>
+          
+          <!-- Degree Markers -->
+          <div class="compass-degree" style="top: 30px; left: 50%; transform: translateX(-50%);">0°</div>
+          <div class="compass-degree" style="top: 50%; right: 30px; transform: translateY(-50%);">90°</div>
+          <div class="compass-degree" style="bottom: 30px; left: 50%; transform: translateX(-50%);">180°</div>
+          <div class="compass-degree" style="top: 50%; left: 30px; transform: translateY(-50%);">270°</div>
         </div>
       </div>
       <div id="qibla-info" class="card">
@@ -257,11 +297,20 @@
       "Fajr": "🌄", "Sunrise": "🌅", "Dhuhr": "☀️", 
       "Asr": "🌇", "Maghrib": "🌆", "Isha": "🌃"
     };
+    const timeGradients = {
+      "Fajr": "var(--bg-night)",
+      "Sunrise": "var(--bg-sunrise)",
+      "Dhuhr": "var(--bg-dhuhr)",
+      "Asr": "var(--bg-asr)",
+      "Maghrib": "var(--bg-maghrib)",
+      "Isha": "var(--bg-night)"
+    };
 
     // State
     let currentLocation = {};
     let currentQiblaDirection = 0;
     let distanceToKaaba = 0;
+    let currentPrayerTime = "Isha";
 
     // DOM Elements
     const clockEl = document.getElementById('clock');
@@ -289,7 +338,10 @@
     // Clock
     function updateClock() {
       clockEl.textContent = new Date().toLocaleTimeString();
-      if (currentLocation.timings) updateNextPrayer();
+      if (currentLocation.timings) {
+        updateNextPrayer();
+        updateBackgroundBasedOnTime();
+      }
     }
 
     // Prayer Times
@@ -321,7 +373,7 @@
           });
 
           currentLocation = { city, country, latitude, longitude, timings: times };
-          updateBackground(Object.keys(prayerIcons), times);
+          updateBackgroundBasedOnTime();
           
           if (latitude && longitude) {
             calculateQiblaDirection(latitude, longitude);
@@ -426,6 +478,11 @@
             nextPrayer = name;
             nextTime = time;
           }
+          
+          // Track current prayer time for background
+          if (prayerTime <= currentTime) {
+            currentPrayerTime = name;
+          }
         }
       });
 
@@ -440,26 +497,10 @@
     }
 
     // Background
-    function updateBackground(prayers, times) {
-      const now = new Date();
-      const currentTime = now.getHours() * 60 + now.getMinutes();
-      let activePrayer = prayers[0];
-
-      prayers.forEach(prayer => {
-        const [h, m] = times[prayer].split(':').map(Number);
-        if ((h * 60 + m) <= currentTime) activePrayer = prayer;
-      });
-
-      const gradients = {
-        "Fajr": "#1e3c72, #2a5298",
-        "Sunrise": "#f6d365, #fda085",
-        "Dhuhr": "#56ccf2, #2f80ed",
-        "Asr": "#f2994a, #f2c94c",
-        "Maghrib": "#e96443, #904e95",
-        "Isha": "#141e30, #243b55"
-      };
+    function updateBackgroundBasedOnTime() {
+      if (document.body.classList.contains('dark-mode')) return;
       
-      document.body.style.background = `linear-gradient(to top, ${gradients[activePrayer]})`;
+      document.body.style.background = timeGradients[currentPrayerTime];
     }
 
     // Location
