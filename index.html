@@ -240,13 +240,15 @@
     
     .compass-arrow {
       position: absolute;
-      top: 50%;
+      top: 10%;
       left: 50%;
-      width: 40%;
-      height: 4px;
-      background: linear-gradient(to right, transparent, var(--warning-color) 50%, transparent);
-      transform-origin: left center;
-      z-index: 2;
+      width: 4px;
+      height: 30%;
+      background: var(--success-color);
+      transform-origin: center bottom;
+      transform: translateX(-50%);
+      z-index: 3;
+      border-radius: 2px;
     }
     
     .compass-center {
@@ -258,7 +260,7 @@
       background: var(--warning-color);
       border-radius: 50%;
       transform: translate(-50%, -50%);
-      z-index: 3;
+      z-index: 4;
     }
     
     .kaaba-marker {
@@ -268,7 +270,19 @@
       background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234a80f0"><path d="M12 2L4 7v10l8 5 8-5V7l-8-5zm0 2.3L18.5 9l-6.5 3.7L5.5 9 12 4.3zm-7 5.3l6 3.4v6.6l-6-3.4V9.6zm14 0v6.6l-6 3.4v-6.6l6-3.4z"/></svg>');
       background-size: contain;
       transform: translate(-50%, -50%);
-      z-index: 4;
+      z-index: 2;
+      transition: transform 0.3s ease;
+    }
+    
+    .kaaba-marker.aligned {
+      transform: translate(-50%, -50%) scale(1.2);
+      animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1.2); }
+      50% { transform: translate(-50%, -50%) scale(1.4); }
+      100% { transform: translate(-50%, -50%) scale(1.2); }
     }
     
     .compass-direction {
@@ -291,6 +305,7 @@
       background: rgba(0,0,0,0.3);
       font-weight: bold;
       transition: all 0.3s;
+      font-size: 1rem;
     }
     
     .qibla-aligned {
@@ -350,7 +365,6 @@
     
     .kaaba-label { color: var(--warning-color); font-weight: bold; }
     
-    /* Swipe indicator */
     .day-indicator {
       display: flex;
       justify-content: center;
@@ -440,7 +454,7 @@
         </div>
       </div>
       <div id="qibla-indicator" class="qibla-indicator">
-        Rotate your device to find Qibla direction
+        Point your phone's top edge and rotate to align the arrow with the Kaaba
       </div>
       <div id="distance-info" class="distance-info"></div>
       
@@ -519,7 +533,6 @@
       updateClock();
       setInterval(updateClock, 1000);
       
-      // Load last saved location or default
       const savedLocations = JSON.parse(localStorage.getItem('savedLocations') || '[]');
       if (savedLocations.length > 0) {
         const lastLocation = savedLocations[savedLocations.length - 1];
@@ -530,16 +543,15 @@
         fetchPrayerTimes('Mecca', 'Saudi Arabia');
       }
       
-      // Setup touch events for swipe
       setupSwipe();
-      
-      // Setup autocomplete
       setupAutocomplete();
     }
 
     // Clock
     function updateClock() {
       const now = new Date();
+      // Set to May 30, 2025, with current time
+      now.setFullYear(2025, 4, 30);
       clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       if (currentLocation.timings) {
         updateBackgroundBasedOnTime();
@@ -548,7 +560,7 @@
     }
 
     // Prayer Times
-    function fetchPrayerTimes(city, country, latitude, longitude, date = new Date()) {
+    function fetchPrayerTimes(city, country, latitude, longitude, date = new Date(2025, 4, 30)) {
       const method = 2;
       const school = localStorage.getItem('asrMethod') === 'hanafi' ? 1 : 0;
       const month = date.getMonth() + 1;
@@ -565,13 +577,11 @@
         .then(res => res.json())
         .then(data => {
           if (data.code === 200 && data.data) {
-            // Filter out invalid dates and get next 5 valid days
             prayerTimesForDays = data.data.filter(day => {
               try {
                 const dateStr = day.date.gregorian.date;
                 const parts = dateStr.split('-');
                 if (parts.length !== 3) return false;
-                
                 const testDate = new Date(parts[2], parts[1]-1, parts[0]);
                 return !isNaN(testDate.getTime());
               } catch (e) {
@@ -583,7 +593,6 @@
               displayPrayerTimes();
               saveLocation(city, country, latitude, longitude);
               
-              // Calculate Qibla direction if we have coordinates
               if (latitude && longitude) {
                 calculateQiblaDirection(latitude, longitude);
               }
@@ -604,11 +613,12 @@
       timeContainerEl.innerHTML = '';
       dayIndicatorEl.innerHTML = '';
       
+      const startDate = new Date(2025, 4, 30);
+      
       prayerTimesForDays.forEach((dayData, index) => {
         try {
-          const dateStr = dayData.date.gregorian.date;
-          const parts = dateStr.split('-');
-          const date = new Date(parts[2], parts[1]-1, parts[0]);
+          const date = new Date(startDate);
+          date.setDate(startDate.getDate() + index);
           
           const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
           const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -623,7 +633,7 @@
           const timesContainer = dayCard.querySelector('.times-container');
           
           Object.entries(prayerIcons).forEach(([name, icon]) => {
-            const timeStr = dayData.timings[name].split(' ')[0]; // Remove timezone if present
+            const timeStr = dayData.timings[name].split(' ')[0];
             const row = document.createElement('div');
             row.className = 'time-row';
             row.innerHTML = `
@@ -635,7 +645,6 @@
           
           timeContainerEl.appendChild(dayCard);
           
-          // Add day indicator dot
           const dot = document.createElement('div');
           dot.className = `day-dot ${index === 0 ? 'active' : ''}`;
           dayIndicatorEl.appendChild(dot);
@@ -644,22 +653,16 @@
         }
       });
       
-      // Set current date display
       try {
-        if (prayerTimesForDays[0]) {
-          const dateStr = prayerTimesForDays[0].date.gregorian.date;
-          const parts = dateStr.split('-');
-          const today = new Date(parts[2], parts[1]-1, parts[0]);
-          
-          datesEl.textContent = today.toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            month: 'long', 
-            day: 'numeric' 
-          });
-        }
+        const today = new Date(2025, 4, 30);
+        datesEl.textContent = today.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          month: 'long', 
+          day: 'numeric' 
+        });
       } catch (e) {
         console.error('Error setting current date:', e);
-        datesEl.textContent = new Date().toLocaleDateString('en-US', { 
+        datesEl.textContent = new Date(2025, 4, 30).toLocaleDateString('en-US', { 
           weekday: 'long', 
           month: 'long', 
           day: 'numeric' 
@@ -681,9 +684,8 @@
       
       currentQiblaDirection = (psi + 360) % 360;
       
-      // Position Kaaba marker
-      const angle = (360 - currentQiblaDirection) * Math.PI / 180;
-      const radius = 125; // Half of compass width
+      const angle = currentQiblaDirection * Math.PI / 180;
+      const radius = 125;
       const kaabaX = radius + (radius - 20) * Math.sin(angle);
       const kaabaY = radius - (radius - 20) * Math.cos(angle);
       
@@ -692,7 +694,7 @@
       
       calculateDistance(lat, lng);
       
-      if (document.getElementById('qibla-tab').classList.contains('hidden') === false) {
+      if (!document.getElementById('qibla-tab').classList.contains('hidden')) {
         updateCompass();
       }
     }
@@ -718,7 +720,6 @@
       }
       
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        // iOS 13+ requires permission
         DeviceOrientationEvent.requestPermission()
           .then(response => {
             if (response === 'granted') {
@@ -736,7 +737,7 @@
     function startCompass() {
       window.addEventListener('deviceorientation', handleOrientation);
       compassActive = true;
-      qiblaIndicatorEl.textContent = "Rotate your device to find Qibla direction";
+      qiblaIndicatorEl.textContent = "Point your phone's top edge and rotate to align the arrow with the Kaaba";
     }
     
     function stopCompass() {
@@ -747,7 +748,7 @@
     function resetCompass() {
       compassEl.style.transform = 'rotate(0deg)';
       currentHeading = 0;
-      updateCompassFeedback(360 - currentQiblaDirection);
+      updateCompassFeedback(0);
     }
     
     function recalibrateCompass() {
@@ -761,18 +762,15 @@
     function handleOrientation(event) {
       let heading = 0;
       if (event.absolute && event.webkitCompassHeading) {
-        heading = event.webkitCompassHeading; // iOS
+        heading = event.webkitCompassHeading;
       } else if (event.alpha !== null) {
-        heading = event.alpha; // Android/other
+        heading = event.alpha;
       }
       
       currentHeading = heading;
       compassEl.style.transform = `rotate(${-heading}deg)`;
+      compassArrowEl.style.transform = 'translateX(-50%)';
       
-      // Update arrow to point to current heading
-      compassArrowEl.style.transform = `rotate(${heading}deg)`;
-      
-      // Calculate angle difference between current heading and Qibla direction
       updateCompassFeedback(heading);
     }
     
@@ -782,27 +780,27 @@
       const minDiff = Math.min(angleDiff, angleDiff2);
       const direction = angleDiff < angleDiff2 ? 'left' : 'right';
       
-      // Update indicator
-      if (minDiff < 10) { // Within 10 degrees
+      if (minDiff < 10) {
         if (!isFacingKaaba) {
           isFacingKaaba = true;
-          qiblaIndicatorEl.textContent = "You are facing the Kaaba!";
+          qiblaIndicatorEl.textContent = "You're facing the Kaaba! 🕋";
           qiblaIndicatorEl.classList.add('qibla-aligned');
+          kaabaMarkerEl.classList.add('aligned');
         }
       } else {
         if (isFacingKaaba) {
           isFacingKaaba = false;
-          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${direction} to face Kaaba`;
           qiblaIndicatorEl.classList.remove('qibla-aligned');
-        } else {
-          qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${direction} to face Kaaba`;
+          kaabaMarkerEl.classList.remove('aligned');
         }
+        qiblaIndicatorEl.textContent = `Rotate ${minDiff.toFixed(0)}° ${direction} to align with the Kaaba`;
       }
     }
 
     // Next Prayer
     function updateNextPrayer() {
       const now = new Date();
+      now.setFullYear(2025, 4, 30);
       const currentTime = now.getHours() * 60 + now.getMinutes();
       let nextPrayer = "Fajr";
       let nextTime = "00:00";
@@ -812,7 +810,7 @@
 
       Object.entries(prayerTimesForDays[0].timings).forEach(([name, timeStr]) => {
         if (prayerIcons[name]) {
-          const time = timeStr.split(' ')[0]; // Remove timezone if present
+          const time = timeStr.split(' ')[0];
           const [h, m] = time.split(':').map(Number);
           const prayerTime = h * 60 + m;
           const diff = prayerTime - currentTime;
@@ -823,7 +821,6 @@
             nextTime = time;
           }
           
-          // Track current prayer time for background
           if (prayerTime <= currentTime) {
             currentPrayerTime = name;
           }
@@ -831,7 +828,6 @@
       });
 
       if (minDiff === Infinity) {
-        // If all prayers have passed for today, show first prayer of next day
         if (prayerTimesForDays[1]) {
           nextPrayer = "Fajr";
           nextTime = prayerTimesForDays[1].timings.Fajr.split(' ')[0];
@@ -877,7 +873,6 @@
                   cityInputEl.value = city;
                   autocompleteResultsEl.innerHTML = '';
                   
-                  // Save and fetch prayer times
                   currentLocation = { 
                     city, 
                     country: result.country || "",
@@ -895,7 +890,6 @@
           });
       });
       
-      // Hide autocomplete when clicking elsewhere
       document.addEventListener('click', function(e) {
         if (e.target !== cityInputEl) {
           autocompleteResultsEl.innerHTML = '';
@@ -922,13 +916,14 @@
             fetchPrayerTimes(city, data.countryCode, latitude, longitude);
           })
           .catch(console.error);
-      }, alert);
+      }, err => {
+        alert('Geolocation permission denied');
+      });
     }
 
     function saveLocation(city, country, latitude, longitude) {
       const saved = JSON.parse(localStorage.getItem('savedLocations') || '[]');
       
-      // Check for duplicates
       const exists = saved.some(loc => 
         loc.city.toLowerCase() === city.toLowerCase() && 
         loc.country.toLowerCase() === country.toLowerCase()
@@ -956,10 +951,8 @@
         
         if (Math.abs(diff) > 50) {
           if (diff > 0 && currentDayIndex < prayerTimesForDays.length - 1) {
-            // Swipe left
             currentDayIndex++;
           } else if (diff < 0 && currentDayIndex > 0) {
-            // Swipe right
             currentDayIndex--;
           }
           
@@ -980,7 +973,6 @@
           inline: 'center'
         });
         
-        // Update active dot
         dayDots.forEach((dot, i) => {
           dot.classList.toggle('active', i === index);
         });
