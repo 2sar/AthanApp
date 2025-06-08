@@ -421,13 +421,7 @@
     </div>
 
     <div id="prayer-times-tab">
-      <div class="search-container">
-        <div class="search-bar">
-          <input type="text" id="city" placeholder="Search for a city" autocomplete="off">
-          <button onclick="detectLocation()">📍 Detect</button>
-        </div>
-        <div id="autocomplete-results" class="autocomplete-items"></div>
-      </div>
+      
 
       <div class="time-container" id="time-container">
         <!-- Days will be loaded here -->
@@ -479,7 +473,14 @@
           <input type="checkbox" id="dark-mode-toggle">
           <label for="dark-mode-toggle">Dark Mode</label>
         </div>
-        <button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
+        <div class="search-container">
+        <div class="search-bar">
+          <input type="text" id="city" placeholder="Search for a city" autocomplete="off">
+          <button onclick="detectLocation()">📍 Detect</button>
+        </div>
+        <div id="autocomplete-results" class="autocomplete-items"></div>
+      </div>
+<button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
       </div>
     </div>
   </div>
@@ -528,7 +529,15 @@
     const autocompleteResultsEl = document.getElementById('autocomplete-results');
 
     // Initialize
+    
     function init() {
+      const lastUpdate = localStorage.getItem('lastUpdate');
+      const today = new Date().toDateString();
+      if (lastUpdate !== today) {
+        localStorage.setItem('lastUpdate', today);
+        location.reload(); // daily refresh
+      }
+    
       loadSettings();
       updateClock();
       setInterval(updateClock, 1000);
@@ -551,8 +560,11 @@
     function updateClock() {
       const now = new Date();
       // Set to May 30, 2025, with current time
-      now.setFullYear(2025, 4, 30);
-      clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      // now.setFullYear(2025, 4, 30); // Removed to use real current date
+      
+      const localTime = now.toLocaleTimeString('en-US', { timeZone: currentLocation.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      clockEl.textContent = localTime;
+    
       if (currentLocation.timings) {
         updateBackgroundBasedOnTime();
         updateNextPrayer();
@@ -560,7 +572,7 @@
     }
 
     // Prayer Times
-    function fetchPrayerTimes(city, country, latitude, longitude, date = new Date(2025, 4, 30)) {
+    function fetchPrayerTimes(city, country, latitude, longitude, date = new Date()) {
       const method = 2;
       const school = localStorage.getItem('asrMethod') === 'hanafi' ? 1 : 0;
       const month = date.getMonth() + 1;
@@ -613,7 +625,7 @@
       timeContainerEl.innerHTML = '';
       dayIndicatorEl.innerHTML = '';
       
-      const startDate = new Date(2025, 4, 30);
+      const startDate = new Date();
       
       prayerTimesForDays.forEach((dayData, index) => {
         try {
@@ -654,7 +666,7 @@
       });
       
       try {
-        const today = new Date(2025, 4, 30);
+        const today = new Date();
         datesEl.textContent = today.toLocaleDateString('en-US', { 
           weekday: 'long', 
           month: 'long', 
@@ -662,7 +674,7 @@
         });
       } catch (e) {
         console.error('Error setting current date:', e);
-        datesEl.textContent = new Date(2025, 4, 30).toLocaleDateString('en-US', { 
+        datesEl.textContent = new Date().toLocaleDateString('en-US', { 
           weekday: 'long', 
           month: 'long', 
           day: 'numeric' 
@@ -800,7 +812,7 @@
     // Next Prayer
     function updateNextPrayer() {
       const now = new Date();
-      now.setFullYear(2025, 4, 30);
+      // now.setFullYear(2025, 4, 30); // Removed to use real current date
       const currentTime = now.getHours() * 60 + now.getMinutes();
       let nextPrayer = "Fajr";
       let nextTime = "00:00";
@@ -838,7 +850,11 @@
 
       const hours = Math.floor(minDiff / 60);
       const mins = minDiff % 60;
-      nextPrayerEl.innerHTML = `Next: ${nextPrayer} at ${to12Hour(nextTime)} (in ${hours > 0 ? hours + 'h ' : ''}${mins}m)`;
+      
+      const nextText = `Next: ${nextPrayer} at ${to12Hour(nextTime)} (in ${hours > 0 ? hours + 'h ' : ''}${mins}m)`;
+      nextPrayerEl.innerHTML = nextText;
+      document.getElementById("next-prayer-footer").innerHTML = nextText;
+    
     }
 
     // Background
@@ -879,6 +895,7 @@
                     latitude: result.latitude, 
                     longitude: result.longitude 
                   };
+                  currentLocation.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
                   fetchPrayerTimes(city, result.country, result.latitude, result.longitude);
                 });
                 autocompleteResultsEl.appendChild(item);
@@ -990,6 +1007,7 @@
       
       if (currentLocation.city) {
         const { city, country, latitude, longitude } = currentLocation;
+        currentLocation.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         fetchPrayerTimes(city, country, latitude, longitude);
       }
       
