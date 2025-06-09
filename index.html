@@ -63,6 +63,7 @@
       min-height: 100vh;
       touch-action: manipulation;
       overflow-x: hidden;
+      padding-bottom: 50px; /* Add space for footer */
     }
 
     .container { 
@@ -391,6 +392,21 @@
       justify-content: center;
       gap: 10px;
     }
+
+    /* New footer styles */
+    .next-prayer-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--next-prayer-bg);
+      padding: 10px 20px;
+      font-size: 1rem;
+      text-align: center;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
     
     @media (max-width: 400px) {
       .search-bar {
@@ -421,8 +437,6 @@
     </div>
 
     <div id="prayer-times-tab">
-      
-
       <div class="time-container" id="time-container">
         <!-- Days will be loaded here -->
       </div>
@@ -474,16 +488,18 @@
           <label for="dark-mode-toggle">Dark Mode</label>
         </div>
         <div class="search-container">
-        <div class="search-bar">
-          <input type="text" id="city" placeholder="Search for a city" autocomplete="off">
-          <button onclick="detectLocation()">📍 Detect</button>
+          <div class="search-bar">
+            <input type="text" id="city" placeholder="Search for a city" autocomplete="off">
+            <button onclick="detectLocation()">📍 Detect</button>
+          </div>
+          <div id="autocomplete-results" class="autocomplete-items"></div>
         </div>
-        <div id="autocomplete-results" class="autocomplete-items"></div>
-      </div>
-<button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
+        <button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
       </div>
     </div>
   </div>
+
+  <div id="next-prayer-footer" class="next-prayer-footer"></div>
 
   <script>
     // Constants
@@ -525,6 +541,7 @@
     const kaabaMarkerEl = document.getElementById('kaaba-marker');
     const qiblaIndicatorEl = document.getElementById('qibla-indicator');
     const nextPrayerEl = document.getElementById('next-prayer');
+    const nextPrayerFooterEl = document.getElementById('next-prayer-footer');
     const cityInputEl = document.getElementById('city');
     const autocompleteResultsEl = document.getElementById('autocomplete-results');
 
@@ -548,6 +565,7 @@
         cityInputEl.value = lastLocation.city;
         currentLocation = lastLocation;
         fetchPrayerTimes(lastLocation.city, lastLocation.country, lastLocation.latitude, lastLocation.longitude);
+        updateNextPrayer();
       } else {
         fetchPrayerTimes('Mecca', 'Saudi Arabia');
       }
@@ -559,10 +577,12 @@
     // Clock
     function updateClock() {
       const now = new Date();
-      // Set to May 30, 2025, with current time
-      // now.setFullYear(2025, 4, 30); // Removed to use real current date
-      
-      const localTime = now.toLocaleTimeString('en-US', { timeZone: currentLocation.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const localTime = now.toLocaleTimeString('en-US', { 
+        timeZone: currentLocation.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
       clockEl.textContent = localTime;
     
       if (currentLocation.timings) {
@@ -604,6 +624,7 @@
             if (prayerTimesForDays.length > 0) {
               displayPrayerTimes();
               saveLocation(city, country, latitude, longitude);
+              updateNextPrayer();
               
               if (latitude && longitude) {
                 calculateQiblaDirection(latitude, longitude);
@@ -812,7 +833,6 @@
     // Next Prayer
     function updateNextPrayer() {
       const now = new Date();
-      // now.setFullYear(2025, 4, 30); // Removed to use real current date
       const currentTime = now.getHours() * 60 + now.getMinutes();
       let nextPrayer = "Fajr";
       let nextTime = "00:00";
@@ -853,8 +873,7 @@
       
       const nextText = `Next: ${nextPrayer} at ${to12Hour(nextTime)} (in ${hours > 0 ? hours + 'h ' : ''}${mins}m)`;
       nextPrayerEl.innerHTML = nextText;
-      document.getElementById("next-prayer-footer").innerHTML = nextText;
-    
+      nextPrayerFooterEl.textContent = nextText;
     }
 
     // Background
