@@ -63,7 +63,7 @@
       min-height: 100vh;
       touch-action: manipulation;
       overflow-x: hidden;
-      padding-bottom: 50px; /* Add space for footer */
+      padding-bottom: 50px;
     }
 
     .container { 
@@ -293,12 +293,6 @@
       font-size: 1rem;
     }
     
-    .compass-degree {
-      position: absolute;
-      color: var(--compass-text);
-      font-size: 0.8rem;
-    }
-    
     .qibla-indicator {
       margin-top: 15px;
       padding: 10px;
@@ -393,7 +387,6 @@
       gap: 10px;
     }
 
-    /* New footer styles */
     .next-prayer-footer {
       position: fixed;
       bottom: 0;
@@ -406,6 +399,20 @@
       z-index: 100;
       backdrop-filter: blur(10px);
       border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .calibration-message {
+      position: fixed;
+      top: 20px;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 10px;
+      text-align: center;
+      z-index: 1000;
+      border-radius: 0 0 8px 8px;
+      display: none;
     }
     
     @media (max-width: 400px) {
@@ -499,6 +506,10 @@
     </div>
   </div>
 
+  <div id="calibration-message" class="calibration-message">
+    Move your device in a figure-8 motion to calibrate the compass
+  </div>
+
   <div id="next-prayer-footer" class="next-prayer-footer"></div>
 
   <script>
@@ -544,9 +555,9 @@
     const nextPrayerFooterEl = document.getElementById('next-prayer-footer');
     const cityInputEl = document.getElementById('city');
     const autocompleteResultsEl = document.getElementById('autocomplete-results');
+    const calibrationMessageEl = document.getElementById('calibration-message');
 
     // Initialize
-    
     function init() {
       const lastUpdate = localStorage.getItem('lastUpdate');
       const today = new Date().toDateString();
@@ -768,13 +779,15 @@
     }
     
     function startCompass() {
-      window.addEventListener('deviceorientation', handleOrientation);
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.addEventListener('deviceorientation', handleOrientation, true);
       compassActive = true;
       qiblaIndicatorEl.textContent = "Point your phone's top edge and rotate to align the arrow with the Kaaba";
     }
     
     function stopCompass() {
-      window.removeEventListener('deviceorientation', handleOrientation);
+      window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.removeEventListener('deviceorientation', handleOrientation, true);
       compassActive = false;
     }
     
@@ -786,23 +799,42 @@
     
     function recalibrateCompass() {
       stopCompass();
+      calibrationMessageEl.style.display = 'block';
+      
+      // Show calibration message for 10 seconds
       setTimeout(() => {
+        calibrationMessageEl.style.display = 'none';
         updateCompass();
-        qiblaIndicatorEl.textContent = "Recalibrating compass...";
-      }, 100);
+        qiblaIndicatorEl.textContent = "Compass recalibrated. Point towards Qibla.";
+      }, 10000);
     }
 
     function handleOrientation(event) {
-      let heading = 0;
-      if (event.absolute && event.webkitCompassHeading) {
+      let heading = null;
+      
+      // Try to get the most accurate heading available
+      if (event.webkitCompassHeading !== undefined) {
+        // iOS
         heading = event.webkitCompassHeading;
+      } else if (event.absolute === true && event.alpha !== null) {
+        // Android with absolute orientation
+        heading = 360 - event.alpha;
       } else if (event.alpha !== null) {
-        heading = event.alpha;
+        // Fallback for devices that don't provide absolute orientation
+        heading = 360 - event.alpha;
       }
+      
+      if (heading === null) return;
+      
+      // Normalize heading to 0-360 degrees
+      heading = (heading + 360) % 360;
       
       currentHeading = heading;
       compassEl.style.transform = `rotate(${-heading}deg)`;
-      compassArrowEl.style.transform = 'translateX(-50%)';
+      
+      // Calculate the angle between current heading and Qibla direction
+      const angleToQibla = (currentQiblaDirection - heading + 360) % 360;
+      compassArrowEl.style.transform = `translateX(-50%) rotate(${angleToQibla}deg)`;
       
       updateCompassFeedback(heading);
     }
